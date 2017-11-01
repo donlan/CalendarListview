@@ -40,11 +40,11 @@ import android.view.View;
 import java.security.InvalidParameterException;
 import java.text.DateFormatSymbols;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Locale;
 
-class SimpleMonthView extends View
-{
+public class SimpleMonthView extends View {
 
     public static final String VIEW_PARAMS_HEIGHT = "height";
     public static final String VIEW_PARAMS_MONTH = "month";
@@ -57,16 +57,18 @@ class SimpleMonthView extends View
     public static final String VIEW_PARAMS_SELECTED_LAST_YEAR = "selected_last_year";
     public static final String VIEW_PARAMS_WEEK_START = "week_start";
 
+    public static final int MODE_SINGLE = 0;
+    public static final int MODE_RANGE = 1;
     private static final int SELECTED_CIRCLE_ALPHA = 128;
     protected static int DEFAULT_HEIGHT = 32;
     protected static final int DEFAULT_NUM_ROWS = 6;
-	protected static int DAY_SELECTED_CIRCLE_SIZE;
-	protected static int DAY_SEPARATOR_WIDTH = 1;
-	protected static int MINI_DAY_NUMBER_TEXT_SIZE;
-	protected static int MIN_HEIGHT = 10;
-	protected static int MONTH_DAY_LABEL_TEXT_SIZE;
-	protected static int MONTH_HEADER_SIZE;
-	protected static int MONTH_LABEL_TEXT_SIZE;
+    protected static int DAY_SELECTED_CIRCLE_SIZE;
+    protected static int DAY_SEPARATOR_WIDTH = 1;
+    protected static int MINI_DAY_NUMBER_TEXT_SIZE;
+    protected static int MIN_HEIGHT = 10;
+    protected static int MONTH_DAY_LABEL_TEXT_SIZE;
+    protected static int MONTH_HEADER_SIZE;
+    protected static int MONTH_LABEL_TEXT_SIZE;
 
     protected int mPadding = 0;
 
@@ -85,6 +87,7 @@ class SimpleMonthView extends View
     protected int mMonthTitleBGColor;
     protected int mPreviousDayColor;
     protected int mSelectedDaysColor;
+    private int mSelectDayBgMidColor;
 
     private final StringBuilder mStringBuilder;
 
@@ -106,27 +109,27 @@ class SimpleMonthView extends View
     protected int mRowHeight = DEFAULT_HEIGHT;
     protected int mWidth;
     protected int mYear;
-    final Time today;
+    final GregorianCalendar today;
+    private int mode = MODE_SINGLE;
 
-	private final Calendar mCalendar;
-	private final Calendar mDayLabelCalendar;
+    private final Calendar mCalendar;
+    private final Calendar mDayLabelCalendar;
     private final Boolean isPrevDayEnabled;
 
     private int mNumRows = DEFAULT_NUM_ROWS;
 
-	private DateFormatSymbols mDateFormatSymbols = new DateFormatSymbols();
+    private DateFormatSymbols mDateFormatSymbols = new DateFormatSymbols();
 
     private OnDayClickListener mOnDayClickListener;
 
-    public SimpleMonthView(Context context, TypedArray typedArray)
-    {
+    public SimpleMonthView(Context context, TypedArray typedArray) {
         super(context);
 
         Resources resources = context.getResources();
         mDayLabelCalendar = Calendar.getInstance();
         mCalendar = Calendar.getInstance();
-        today = new Time(Time.getCurrentTimezone());
-        today.setToNow();
+        today = new GregorianCalendar();
+        today.setTimeInMillis(System.currentTimeMillis());
         mDayOfWeekTypeface = resources.getString(R.string.sans_serif);
         mMonthTitleTypeface = resources.getString(R.string.sans_serif);
         mCurrentDayTextColor = typedArray.getColor(R.styleable.DayPickerView_colorCurrentDay, resources.getColor(R.color.normal_day));
@@ -136,9 +139,9 @@ class SimpleMonthView extends View
         mPreviousDayColor = typedArray.getColor(R.styleable.DayPickerView_colorPreviousDay, resources.getColor(R.color.normal_day));
         mSelectedDaysColor = typedArray.getColor(R.styleable.DayPickerView_colorSelectedDayBackground, resources.getColor(R.color.selected_day_background));
         mMonthTitleBGColor = typedArray.getColor(R.styleable.DayPickerView_colorSelectedDayText, resources.getColor(R.color.selected_day_text));
-
+        mSelectDayBgMidColor  =typedArray.getColor(R.styleable.DayPickerView_colorSelectedDayBgMid,resources.getColor(R.color.selected_day_mid_background));
         mDrawRect = typedArray.getBoolean(R.styleable.DayPickerView_drawRoundRect, false);
-
+        mode = typedArray.getInt(R.styleable.DayPickerView_pickMode, MODE_SINGLE);
         mStringBuilder = new StringBuilder(50);
 
         MINI_DAY_NUMBER_TEXT_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_textSizeDay, resources.getDimensionPixelSize(R.dimen.text_size_day));
@@ -160,9 +163,9 @@ class SimpleMonthView extends View
         int dividend = (offset + mNumCells) / mNumDays;
         int remainder = (offset + mNumCells) % mNumDays;
         return (dividend + (remainder > 0 ? 1 : 0));
-	}
+    }
 
-	private void drawMonthDayLabels(Canvas canvas) {
+    private void drawMonthDayLabels(Canvas canvas) {
         int y = MONTH_HEADER_SIZE - (MONTH_DAY_LABEL_TEXT_SIZE / 2);
         int dayWidthHalf = (mWidth - mPadding * 2) / (mNumDays * 2);
 
@@ -172,140 +175,175 @@ class SimpleMonthView extends View
             mDayLabelCalendar.set(Calendar.DAY_OF_WEEK, calendarDay);
             canvas.drawText(mDateFormatSymbols.getShortWeekdays()[mDayLabelCalendar.get(Calendar.DAY_OF_WEEK)].toUpperCase(Locale.getDefault()), x, y, mMonthDayLabelPaint);
         }
-	}
+    }
 
-	private void drawMonthTitle(Canvas canvas) {
+    private void drawMonthTitle(Canvas canvas) {
         int x = (mWidth + 2 * mPadding) / 2;
         int y = (MONTH_HEADER_SIZE - MONTH_DAY_LABEL_TEXT_SIZE) / 2 + (MONTH_LABEL_TEXT_SIZE / 3);
         StringBuilder stringBuilder = new StringBuilder(getMonthAndYearString().toLowerCase());
         stringBuilder.setCharAt(0, Character.toUpperCase(stringBuilder.charAt(0)));
         canvas.drawText(stringBuilder.toString(), x, y, mMonthTitlePaint);
-	}
+    }
 
-	private int findDayOffset() {
+    private int findDayOffset() {
         return (mDayOfWeekStart < mWeekStart ? (mDayOfWeekStart + mNumDays) : mDayOfWeekStart)
                 - mWeekStart;
-	}
+    }
 
-	private String getMonthAndYearString() {
+    private String getMonthAndYearString() {
         int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR | DateUtils.FORMAT_NO_MONTH_DAY;
         mStringBuilder.setLength(0);
         long millis = mCalendar.getTimeInMillis();
         return DateUtils.formatDateRange(getContext(), millis, millis, flags);
     }
 
-	private void onDayClick(SimpleMonthAdapter.CalendarDay calendarDay) {
-		if (mOnDayClickListener != null && (isPrevDayEnabled || !((calendarDay.month == today.month) && (calendarDay.year == today.year) && calendarDay.day < today.monthDay))) {
-			mOnDayClickListener.onDayClick(this, calendarDay);
+    private void onDayClick(SimpleMonthAdapter.CalendarDay calendarDay) {
+        if (mOnDayClickListener != null && (isPrevDayEnabled || !((calendarDay.month == today.get(GregorianCalendar.MONTH)) && (calendarDay.year == today.get(GregorianCalendar.YEAR)) && calendarDay.day < today.get(GregorianCalendar.DATE)))) {
+            mOnDayClickListener.onDayClick(this, calendarDay);
         }
-	}
-
-	private boolean sameDay(int monthDay, Time time) {
-		return (mYear == time.year) && (mMonth == time.month) && (monthDay == time.monthDay);
-	}
-
-    private boolean prevDay(int monthDay, Time time) {
-        return ((mYear < time.year)) || (mYear == time.year && mMonth < time.month) || ( mMonth == time.month && monthDay < time.monthDay);
     }
 
-	protected void drawMonthNums(Canvas canvas) {
-		int y = (mRowHeight + MINI_DAY_NUMBER_TEXT_SIZE) / 2 - DAY_SEPARATOR_WIDTH + MONTH_HEADER_SIZE;
-		int paddingDay = (mWidth - 2 * mPadding) / (2 * mNumDays);
-		int dayOffset = findDayOffset();
-		int day = 1;
+    private boolean sameDay(int monthDay, GregorianCalendar time) {
+        return (mYear == time.get(GregorianCalendar.YEAR)) && (mMonth == time.get(GregorianCalendar.MONTH)) && (monthDay == time.get(GregorianCalendar.DATE));
+    }
 
-		while (day <= mNumCells) {
-			int x = paddingDay * (1 + dayOffset * 2) + mPadding;
-			if ((mMonth == mSelectedBeginMonth && mSelectedBeginDay == day && mSelectedBeginYear == mYear) || (mMonth == mSelectedLastMonth && mSelectedLastDay == day && mSelectedLastYear == mYear)) {
-                if (mDrawRect)
-                {
-                    RectF rectF = new RectF(x - DAY_SELECTED_CIRCLE_SIZE, (y  - MINI_DAY_NUMBER_TEXT_SIZE / 3) - DAY_SELECTED_CIRCLE_SIZE, x + DAY_SELECTED_CIRCLE_SIZE, (y  - MINI_DAY_NUMBER_TEXT_SIZE / 3) + DAY_SELECTED_CIRCLE_SIZE);
-                    canvas.drawRoundRect(rectF, 10.0f, 10.0f,mSelectedCirclePaint);
-                }
-                else
+    private boolean prevDay(int monthDay, GregorianCalendar time) {
+        return ((mYear < time.get(GregorianCalendar.YEAR))) || (mYear == time.get(GregorianCalendar.YEAR) && mMonth < time.get(GregorianCalendar.MONTH)) || (mMonth == time.get(GregorianCalendar.MONTH) && monthDay < time.get(GregorianCalendar.DATE));
+    }
+
+    protected void drawMonthNums(Canvas canvas) {
+        int y = (mRowHeight + MINI_DAY_NUMBER_TEXT_SIZE) / 2 - DAY_SEPARATOR_WIDTH + MONTH_HEADER_SIZE;
+        int paddingDay = (mWidth - 2 * mPadding) / (2 * mNumDays);
+        int dayOffset = findDayOffset();
+        int day = 1;
+
+        while (day <= mNumCells) {
+            int x = paddingDay * (1 + dayOffset * 2);
+            boolean isSelect = false;
+            if ((mMonth == mSelectedBeginMonth && mSelectedBeginDay == day && mSelectedBeginYear == mYear) || (mMonth == mSelectedLastMonth && mSelectedLastDay == day && mSelectedLastYear == mYear)) {
+                mSelectedCirclePaint.setColor(mSelectedDaysColor);
+                if (mDrawRect) {
+                    RectF rectF = new RectF(x - DAY_SELECTED_CIRCLE_SIZE, (y - MINI_DAY_NUMBER_TEXT_SIZE / 3) - DAY_SELECTED_CIRCLE_SIZE, x + DAY_SELECTED_CIRCLE_SIZE, (y - MINI_DAY_NUMBER_TEXT_SIZE / 3) + DAY_SELECTED_CIRCLE_SIZE);
+                    canvas.drawRoundRect(rectF, 10.0f, 10.0f, mSelectedCirclePaint);
+                } else {
                     canvas.drawCircle(x, y - MINI_DAY_NUMBER_TEXT_SIZE / 3, DAY_SELECTED_CIRCLE_SIZE, mSelectedCirclePaint);
+                }
+                isSelect = true;
             }
             if (mHasToday && (mToday == day)) {
                 mMonthNumPaint.setColor(mCurrentDayTextColor);
                 mMonthNumPaint.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
+                if (!isSelect) {
+                    canvas.drawCircle(x, y - MINI_DAY_NUMBER_TEXT_SIZE / 3, DAY_SELECTED_CIRCLE_SIZE, mSelectedCirclePaint);
+                }
             } else {
-				mMonthNumPaint.setColor(mDayNumColor);
+                mMonthNumPaint.setColor(mDayNumColor);
                 mMonthNumPaint.setTypeface(Typeface.defaultFromStyle(Typeface.NORMAL));
             }
 
-            if ((mMonth == mSelectedBeginMonth && mSelectedBeginDay == day && mSelectedBeginYear == mYear) || (mMonth == mSelectedLastMonth && mSelectedLastDay == day && mSelectedLastYear == mYear))
+            if ((mMonth == mSelectedBeginMonth && mSelectedBeginDay == day && mSelectedBeginYear == mYear) || (mMonth == mSelectedLastMonth && mSelectedLastDay == day && mSelectedLastYear == mYear)) {
                 mMonthNumPaint.setColor(mMonthTitleBGColor);
-
+            }
+            isSelect = false;
             if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1 && mSelectedBeginYear == mSelectedLastYear &&
                     mSelectedBeginMonth == mSelectedLastMonth &&
                     mSelectedBeginDay == mSelectedLastDay &&
                     day == mSelectedBeginDay &&
                     mMonth == mSelectedBeginMonth &&
-                    mYear == mSelectedBeginYear))
-                mMonthNumPaint.setColor(mSelectedDaysColor);
-
-            if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1 && mSelectedBeginYear == mSelectedLastYear && mSelectedBeginYear == mYear) &&
-                    (((mMonth == mSelectedBeginMonth && mSelectedLastMonth == mSelectedBeginMonth) && ((mSelectedBeginDay < mSelectedLastDay && day > mSelectedBeginDay && day < mSelectedLastDay) || (mSelectedBeginDay > mSelectedLastDay && day < mSelectedBeginDay && day > mSelectedLastDay))) ||
-                    ((mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedBeginMonth && day > mSelectedBeginDay) || (mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedLastMonth && day < mSelectedLastDay)) ||
-                    ((mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedBeginMonth && day < mSelectedBeginDay) || (mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedLastMonth && day > mSelectedLastDay))))
-            {
-                mMonthNumPaint.setColor(mSelectedDaysColor);
+                    mYear == mSelectedBeginYear)) {
+                isSelect = true;
             }
 
-            if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1 && mSelectedBeginYear != mSelectedLastYear && ((mSelectedBeginYear == mYear && mMonth == mSelectedBeginMonth) || (mSelectedLastYear == mYear && mMonth == mSelectedLastMonth)) &&
-                    (((mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedBeginMonth && day < mSelectedBeginDay) || (mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedLastMonth && day > mSelectedLastDay)) ||
-                    ((mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedBeginMonth && day > mSelectedBeginDay) || (mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedLastMonth && day < mSelectedLastDay)))))
-            {
-                mMonthNumPaint.setColor(mSelectedDaysColor);
+            else if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1
+                    && mSelectedBeginYear == mSelectedLastYear
+                    && mSelectedBeginYear == mYear)
+                    && (((mMonth == mSelectedBeginMonth && mSelectedLastMonth == mSelectedBeginMonth)
+                    && ((mSelectedBeginDay < mSelectedLastDay && day > mSelectedBeginDay && day < mSelectedLastDay)
+                    || (mSelectedBeginDay > mSelectedLastDay && day < mSelectedBeginDay && day > mSelectedLastDay)))
+                    || ((mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedBeginMonth && day > mSelectedBeginDay)
+                    || (mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedLastMonth && day < mSelectedLastDay))
+                    || ((mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedBeginMonth && day < mSelectedBeginDay)
+                    || (mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedLastMonth && day > mSelectedLastDay)))) {
+                isSelect = true;
             }
 
-            if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1 && mSelectedBeginYear == mSelectedLastYear && mYear == mSelectedBeginYear) &&
-                    ((mMonth > mSelectedBeginMonth && mMonth < mSelectedLastMonth && mSelectedBeginMonth < mSelectedLastMonth) ||
-                     (mMonth < mSelectedBeginMonth && mMonth > mSelectedLastMonth && mSelectedBeginMonth > mSelectedLastMonth)))
-            {
-                mMonthNumPaint.setColor(mSelectedDaysColor);
+            else if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1
+                    && mSelectedBeginYear != mSelectedLastYear
+                    && ((mSelectedBeginYear == mYear && mMonth == mSelectedBeginMonth)
+                    || (mSelectedLastYear == mYear && mMonth == mSelectedLastMonth))
+                    && (((mSelectedBeginMonth < mSelectedLastMonth && mMonth == mSelectedBeginMonth
+                    && day < mSelectedBeginDay) || (mSelectedBeginMonth < mSelectedLastMonth
+                    && mMonth == mSelectedLastMonth && day > mSelectedLastDay))
+                    || ((mSelectedBeginMonth > mSelectedLastMonth && mMonth == mSelectedBeginMonth
+                    && day > mSelectedBeginDay) || (mSelectedBeginMonth > mSelectedLastMonth
+                    && mMonth == mSelectedLastMonth && day < mSelectedLastDay))))) {
+                isSelect = true;
             }
 
-            if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1 && mSelectedBeginYear != mSelectedLastYear) &&
-                    ((mSelectedBeginYear < mSelectedLastYear && ((mMonth > mSelectedBeginMonth && mYear == mSelectedBeginYear) || (mMonth < mSelectedLastMonth && mYear == mSelectedLastYear))) ||
-                     (mSelectedBeginYear > mSelectedLastYear && ((mMonth < mSelectedBeginMonth && mYear == mSelectedBeginYear) || (mMonth > mSelectedLastMonth && mYear == mSelectedLastYear)))))
-            {
-                mMonthNumPaint.setColor(mSelectedDaysColor);
+            else if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1
+                    && mSelectedBeginYear == mSelectedLastYear && mYear == mSelectedBeginYear)
+                    && ((mMonth > mSelectedBeginMonth && mMonth < mSelectedLastMonth
+                    && mSelectedBeginMonth < mSelectedLastMonth)
+                    || (mMonth < mSelectedBeginMonth && mMonth > mSelectedLastMonth
+                    && mSelectedBeginMonth > mSelectedLastMonth))) {
+                isSelect = true;
             }
 
-            if (!isPrevDayEnabled && prevDay(day, today) && today.month == mMonth && today.year == mYear)
-            {
+            else if ((mSelectedBeginDay != -1 && mSelectedLastDay != -1
+                    && mSelectedBeginYear != mSelectedLastYear)
+                    && ((mSelectedBeginYear < mSelectedLastYear
+                    && ((mMonth > mSelectedBeginMonth && mYear == mSelectedBeginYear)
+                    || (mMonth < mSelectedLastMonth && mYear == mSelectedLastYear)))
+                    || (mSelectedBeginYear > mSelectedLastYear
+                    && ((mMonth < mSelectedBeginMonth && mYear == mSelectedBeginYear)
+                    || (mMonth > mSelectedLastMonth && mYear == mSelectedLastYear))))) {
+                isSelect = true;
+            }
+
+
+            if (!isPrevDayEnabled && prevDay(day, today) && today.get(GregorianCalendar.MONTH) == mMonth && today.get(GregorianCalendar.YEAR) == mYear) {
                 mMonthNumPaint.setColor(mPreviousDayColor);
                 mMonthNumPaint.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC));
             }
+            //选中的日期
+            if (isSelect) {
+                mMonthNumPaint.setColor(mMonthTitleBGColor);
+                mSelectedCirclePaint.setColor(mSelectDayBgMidColor);
+                if (mDrawRect) {
+                    RectF rectF = new RectF(x - DAY_SELECTED_CIRCLE_SIZE  , (y - MINI_DAY_NUMBER_TEXT_SIZE / 3) - DAY_SELECTED_CIRCLE_SIZE, x + DAY_SELECTED_CIRCLE_SIZE, (y - MINI_DAY_NUMBER_TEXT_SIZE / 3) + DAY_SELECTED_CIRCLE_SIZE);
+                    canvas.drawRect(rectF, mSelectedCirclePaint);
+                } else {
+                    canvas.drawCircle(x, y - MINI_DAY_NUMBER_TEXT_SIZE / 3, DAY_SELECTED_CIRCLE_SIZE, mSelectedCirclePaint);
+                }
+            }
+            canvas.drawText(String.format("%d", day), x, y, mMonthNumPaint);
 
-			canvas.drawText(String.format("%d", day), x, y, mMonthNumPaint);
+            dayOffset++;
+            if (dayOffset == mNumDays) {
+                dayOffset = 0;
+                y += mRowHeight;
+            }
+            day++;
+        }
+    }
 
-			dayOffset++;
-			if (dayOffset == mNumDays) {
-				dayOffset = 0;
-				y += mRowHeight;
-			}
-			day++;
-		}
-	}
-
-	public SimpleMonthAdapter.CalendarDay getDayFromLocation(float x, float y) {
-		int padding = mPadding;
-		if ((x < padding) || (x > mWidth - mPadding)) {
-			return null;
-		}
-
-		int yDay = (int) (y - MONTH_HEADER_SIZE) / mRowHeight;
-		int day = 1 + ((int) ((x - padding) * mNumDays / (mWidth - padding - mPadding)) - findDayOffset()) + yDay * mNumDays;
-
-        if (mMonth > 11 || mMonth < 0 || CalendarUtils.getDaysInMonth(mMonth, mYear) < day || day < 1)
+    public SimpleMonthAdapter.CalendarDay getDayFromLocation(float x, float y) {
+        int padding = mPadding;
+        if ((x < padding) || (x > mWidth - mPadding)) {
             return null;
+        }
 
-		return new SimpleMonthAdapter.CalendarDay(mYear, mMonth, day);
-	}
+        int yDay = (int) (y - MONTH_HEADER_SIZE) / mRowHeight;
+        int day = 1 + ((int) ((x - padding) * mNumDays / (mWidth - padding - mPadding)) - findDayOffset()) + yDay * mNumDays;
 
-	protected void initView() {
+        if (mMonth > 11 || mMonth < 0 || CalendarUtils.getDaysInMonth(mMonth, mYear) < day || day < 1) {
+            return null;
+        }
+
+        return new SimpleMonthAdapter.CalendarDay(mYear, mMonth, day);
+    }
+
+    protected void initView() {
         mMonthTitlePaint = new Paint();
         mMonthTitlePaint.setFakeBoldText(true);
         mMonthTitlePaint.setAntiAlias(true);
@@ -345,23 +383,27 @@ class SimpleMonthView extends View
         mMonthNumPaint.setStyle(Style.FILL);
         mMonthNumPaint.setTextAlign(Align.CENTER);
         mMonthNumPaint.setFakeBoldText(false);
-	}
+    }
 
-	protected void onDraw(Canvas canvas) {
-		drawMonthTitle(canvas);
-		drawMonthDayLabels(canvas);
-		drawMonthNums(canvas);
-	}
+    @Override
+    protected void onDraw(Canvas canvas) {
+        drawMonthTitle(canvas);
+        drawMonthDayLabels(canvas);
+        drawMonthNums(canvas);
+    }
 
-	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-		setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), mRowHeight * mNumRows + MONTH_HEADER_SIZE);
-	}
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), mRowHeight * mNumRows + MONTH_HEADER_SIZE);
+    }
 
-	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-		mWidth = w;
-	}
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        mWidth = w;
+    }
 
-	public boolean onTouchEvent(MotionEvent event) {
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_UP) {
             SimpleMonthAdapter.CalendarDay calendarDay = getDayFromLocation(event.getX(), event.getY());
             if (calendarDay != null) {
@@ -369,18 +411,18 @@ class SimpleMonthView extends View
             }
         }
         return true;
-	}
+    }
 
-	public void reuse() {
+    public void reuse() {
         mNumRows = DEFAULT_NUM_ROWS;
-		requestLayout();
-	}
+        requestLayout();
+    }
 
-	public void setMonthParams(HashMap<String, Integer> params) {
+    public void setMonthParams(HashMap<String, Integer> params) {
         if (!params.containsKey(VIEW_PARAMS_MONTH) && !params.containsKey(VIEW_PARAMS_YEAR)) {
             throw new InvalidParameterException("You must specify month and year for this view");
         }
-		setTag(params);
+        setTag(params);
 
         if (params.containsKey(VIEW_PARAMS_HEIGHT)) {
             mRowHeight = params.get(VIEW_PARAMS_HEIGHT);
@@ -413,10 +455,10 @@ class SimpleMonthView extends View
         mHasToday = false;
         mToday = -1;
 
-		mCalendar.set(Calendar.MONTH, mMonth);
-		mCalendar.set(Calendar.YEAR, mYear);
-		mCalendar.set(Calendar.DAY_OF_MONTH, 1);
-		mDayOfWeekStart = mCalendar.get(Calendar.DAY_OF_WEEK);
+        mCalendar.set(Calendar.MONTH, mMonth);
+        mCalendar.set(Calendar.YEAR, mYear);
+        mCalendar.set(Calendar.DAY_OF_MONTH, 1);
+        mDayOfWeekStart = mCalendar.get(Calendar.DAY_OF_WEEK);
 
         if (params.containsKey(VIEW_PARAMS_WEEK_START)) {
             mWeekStart = params.get(VIEW_PARAMS_WEEK_START);
@@ -436,13 +478,17 @@ class SimpleMonthView extends View
         }
 
         mNumRows = calculateNumRows();
-	}
+    }
 
-	public void setOnDayClickListener(OnDayClickListener onDayClickListener) {
-		mOnDayClickListener = onDayClickListener;
-	}
+    public void setOnDayClickListener(OnDayClickListener onDayClickListener) {
+        mOnDayClickListener = onDayClickListener;
+    }
 
-	public static abstract interface OnDayClickListener {
-		public abstract void onDayClick(SimpleMonthView simpleMonthView, SimpleMonthAdapter.CalendarDay calendarDay);
-	}
+    public int getMode() {
+        return mode;
+    }
+
+    public interface OnDayClickListener {
+        void onDayClick(SimpleMonthView simpleMonthView, SimpleMonthAdapter.CalendarDay calendarDay);
+    }
 }

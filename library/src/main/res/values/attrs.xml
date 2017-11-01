@@ -8,6 +8,7 @@
         <attr name="colorNormalDay" format="color" />
         <attr name="colorMonthName" format="color" />
         <attr name="colorDayName" format="color" />
+        <attr name="colorSelectedDayBgMid" format="color"/>
         <attr name="textSizeDay" format="dimension"/>
         <attr name="textSizeMonth" format="dimension" />
         <attr name="textSizeDayName" format="dimension" />
@@ -17,6 +18,10 @@
         <attr name="enablePreviousDay" format="boolean" />
         <attr name="currentDaySelected" format="boolean" />
         <attr name="drawRoundRect" format="boolean" />
+        <attr name="pickMode" format="enum">
+            <enum name="single" value="0"/>
+            <enum name="range" value="1"/>
+        </attr>
         <attr name="firstMonth" format="enum">
             <enum name="january" value="0" />
             <enum name="february" value="1" />

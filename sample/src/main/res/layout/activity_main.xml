@@ -1,5 +1,5 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:calendar="http://schemas.android.com/apk/res-auto"
+    xmlns:calendar="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -7,8 +7,14 @@
 
     <com.andexert.calendarlistview.library.DayPickerView
         android:id="@+id/pickerView"
+        calendar:pickMode="single"
+        calendar:colorCurrentDay="#fff"
+        calendar:colorMonthName="#222"
+        calendar:textSizeDay="16sp"
+        calendar:colorNormalDay="#555"
+        calendar:textSizeMonth="18sp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        calendar:drawRoundRect="true"/>
+        calendar:drawRoundRect="true" />
 
 </RelativeLayout>
